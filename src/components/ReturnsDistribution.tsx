@@ -64,13 +64,19 @@ const ReturnsDistribution = () => {
             />
             <Bar 
               dataKey="count" 
-              fill="fill" 
               name="Trades" 
               isAnimationActive={true}
               animationDuration={1000}
             >
               {histogramData.map((entry, index) => (
-                <cells key={`cell-${index}`} fill={entry.color} />
+                <rect 
+                  key={`cell-${index}`} 
+                  fill={entry.color} 
+                  x={0} 
+                  y={0} 
+                  width={0} 
+                  height={0}
+                />
               ))}
             </Bar>
           </BarChart>

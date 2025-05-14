@@ -3,18 +3,59 @@ import { useState } from "react";
 import { useTrade } from "@/context/TradeContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { PlusCircle, Pencil, Trash2, Check, X, AlertCircle } from "lucide-react";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Trade } from "@/types";
+import { useToast } from "@/components/ui/use-toast";
 
 const TradeTable = () => {
-  const { filteredTrades, setupAnalysis, brokerAnalysis } = useTrade();
+  const { filteredTrades, setupAnalysis, brokerAnalysis, addTrade } = useTrade();
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
+  const [isEditing, setIsEditing] = useState<number | null>(null);
+  const [editedValues, setEditedValues] = useState<Partial<Trade>>({});
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [newTrade, setNewTrade] = useState<Partial<Trade>>({
+    type: "LONG",
+    orderType: "MAKER",
+    margin: 100,
+    leverage: 5,
+    entryPrice: 0,
+    exitPrice: 0,
+    stopPercentage: 0.05,
+    winPercentage: 0,
+    resultType: "WIN",
+    entryFee: 0,
+    exitFee: 0,
+    totalCost: 0,
+    date: new Date().toISOString().split('T')[0],
+    setup: "",
+    broker: "",
+  });
+
+  const { toast } = useToast();
   
   // Manual pagination
   const paginatedTrades = filteredTrades.slice((page - 1) * pageSize, page * pageSize);
@@ -37,66 +78,415 @@ const TradeTable = () => {
     }).format(value);
   };
 
+  const handleEdit = (tradeId: number) => {
+    const trade = filteredTrades.find(t => t.id === tradeId);
+    if (trade) {
+      setIsEditing(tradeId);
+      setEditedValues({ ...trade });
+    }
+  };
+
+  const handleSaveEdit = () => {
+    // In a real app, this would save to the backend
+    // For now, just show a toast and reset editing state
+    toast({
+      title: "Trade updated",
+      description: `Trade #${isEditing} has been updated successfully.`,
+    });
+    setIsEditing(null);
+    setEditedValues({});
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(null);
+    setEditedValues({});
+  };
+
+  const handleDelete = (tradeId: number) => {
+    // In a real app, this would delete from the backend
+    // For now, just show a toast
+    toast({
+      title: "Trade deleted",
+      description: `Trade #${tradeId} has been removed.`,
+      variant: "destructive",
+    });
+  };
+
+  const handleAddTrade = () => {
+    // Calculate missing fields
+    const calculatedTrade = {
+      ...newTrade,
+      winPercentage: newTrade.type === "LONG" 
+        ? ((newTrade.exitPrice || 0) - (newTrade.entryPrice || 0)) / (newTrade.entryPrice || 1) 
+        : ((newTrade.entryPrice || 0) - (newTrade.exitPrice || 0)) / (newTrade.entryPrice || 1),
+      resultType: newTrade.type === "LONG" 
+        ? (newTrade.exitPrice || 0) > (newTrade.entryPrice || 0) ? "WIN" : "LOSS" 
+        : (newTrade.exitPrice || 0) < (newTrade.entryPrice || 0) ? "WIN" : "LOSS",
+      target1Price: calculateTarget1Price(newTrade),
+    };
+
+    // Add the trade
+    addTrade(calculatedTrade as Omit<Trade, 'id'>);
+    
+    // Show success message
+    toast({
+      title: "Trade added",
+      description: "New trade has been added successfully.",
+    });
+
+    // Reset form and close dialog
+    setIsAddDialogOpen(false);
+    setNewTrade({
+      type: "LONG",
+      orderType: "MAKER",
+      margin: 100,
+      leverage: 5,
+      entryPrice: 0,
+      exitPrice: 0,
+      stopPercentage: 0.05,
+      winPercentage: 0,
+      resultType: "WIN",
+      entryFee: 0,
+      exitFee: 0,
+      totalCost: 0,
+      date: new Date().toISOString().split('T')[0],
+      setup: "",
+      broker: "",
+    });
+  };
+
+  const calculateTarget1Price = (trade: Partial<Trade>) => {
+    if (!trade.entryPrice || !trade.stopPercentage) return undefined;
+
+    if (trade.type === "LONG") {
+      const stopDelta = trade.entryPrice * trade.stopPercentage;
+      return trade.entryPrice + stopDelta;
+    } else {
+      const stopDelta = trade.entryPrice * trade.stopPercentage;
+      return trade.entryPrice - stopDelta;
+    }
+  };
+
+  const calculateTarget1 = (trade: Trade) => {
+    if (trade.type === "LONG") {
+      return trade.entryPrice + (trade.entryPrice * trade.stopPercentage);
+    } else {
+      return trade.entryPrice - (trade.entryPrice * trade.stopPercentage);
+    }
+  };
+
+  const calculatePositionValue = (trade: Trade) => {
+    return trade.margin * trade.leverage;
+  };
+
+  const calculateTarget1Value = (trade: Trade) => {
+    return calculatePositionValue(trade) * 0.5; // 50% of position value
+  };
+
   return (
     <Card className="crypto-card">
-      <CardHeader className="pb-2">
+      <CardHeader className="pb-2 flex flex-row items-center justify-between">
         <CardTitle>Trade Details</CardTitle>
+        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" size="sm">
+              <PlusCircle className="h-4 w-4 mr-1" /> Add Trade
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Add New Trade</DialogTitle>
+              <DialogDescription>
+                Enter the details for your new trade. Required fields are marked with an asterisk (*).
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Date*</label>
+                <Input 
+                  type="date" 
+                  value={newTrade.date} 
+                  onChange={(e) => setNewTrade({...newTrade, date: e.target.value})} 
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Type*</label>
+                <select 
+                  className="w-full p-2 border rounded" 
+                  value={newTrade.type} 
+                  onChange={(e) => setNewTrade({...newTrade, type: e.target.value as "LONG" | "SHORT"})}
+                >
+                  <option value="LONG">LONG</option>
+                  <option value="SHORT">SHORT</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Order Type*</label>
+                <select 
+                  className="w-full p-2 border rounded" 
+                  value={newTrade.orderType} 
+                  onChange={(e) => setNewTrade({...newTrade, orderType: e.target.value as "MAKER" | "TAKER"})}
+                >
+                  <option value="MAKER">MAKER</option>
+                  <option value="TAKER">TAKER</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Setup</label>
+                <Input 
+                  type="text" 
+                  value={newTrade.setup} 
+                  onChange={(e) => setNewTrade({...newTrade, setup: e.target.value})} 
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Broker</label>
+                <Input 
+                  type="text" 
+                  value={newTrade.broker} 
+                  onChange={(e) => setNewTrade({...newTrade, broker: e.target.value})} 
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Margin*</label>
+                <Input 
+                  type="number" 
+                  value={newTrade.margin} 
+                  onChange={(e) => setNewTrade({...newTrade, margin: parseFloat(e.target.value)})} 
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Leverage*</label>
+                <Input 
+                  type="number" 
+                  value={newTrade.leverage} 
+                  onChange={(e) => setNewTrade({...newTrade, leverage: parseFloat(e.target.value)})} 
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Entry Price*</label>
+                <Input 
+                  type="number" 
+                  value={newTrade.entryPrice} 
+                  onChange={(e) => setNewTrade({...newTrade, entryPrice: parseFloat(e.target.value)})} 
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Exit Price*</label>
+                <Input 
+                  type="number" 
+                  value={newTrade.exitPrice} 
+                  onChange={(e) => setNewTrade({...newTrade, exitPrice: parseFloat(e.target.value)})} 
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Stop %*</label>
+                <Input 
+                  type="number" 
+                  value={newTrade.stopPercentage} 
+                  onChange={(e) => setNewTrade({...newTrade, stopPercentage: parseFloat(e.target.value)})} 
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleAddTrade}>Save Trade</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardHeader>
       <CardContent>
-        <Tabs defaultValue="trades">
+        <Tabs defaultValue="trades-targets">
           <TabsList className="mb-4">
-            <TabsTrigger value="trades">Trades</TabsTrigger>
+            <TabsTrigger value="trades-targets">Trades & Targets</TabsTrigger>
             <TabsTrigger value="setups">Setup Analysis</TabsTrigger>
             <TabsTrigger value="brokers">Broker Analysis</TabsTrigger>
-            <TabsTrigger value="targets">Target Analysis</TabsTrigger>
+            <TabsTrigger value="risk-reward">Risk/Reward Analysis</TabsTrigger>
           </TabsList>
           
-          <TabsContent value="trades">
+          <TabsContent value="trades-targets">
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Actions</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Order</TableHead>
                     <TableHead>Setup</TableHead>
                     <TableHead>Broker</TableHead>
-                    <TableHead className="text-right">Margin</TableHead>
-                    <TableHead className="text-right">Leverage</TableHead>
-                    <TableHead className="text-right">Entry Price</TableHead>
-                    <TableHead className="text-right">Exit Price</TableHead>
-                    <TableHead className="text-right">Stop %</TableHead>
-                    <TableHead className="text-right">Result %</TableHead>
-                    <TableHead className="text-right">Fees</TableHead>
+                    <TableHead>Entry</TableHead>
+                    <TableHead>Exit</TableHead>
+                    <TableHead>Stop %</TableHead>
+                    <TableHead>Result %</TableHead>
+                    <TableHead>Target 1 (1:1)</TableHead>
+                    <TableHead>Position Value</TableHead>
+                    <TableHead>T1 Value (50%)</TableHead>
+                    <TableHead>T2</TableHead>
+                    <TableHead>T3</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedTrades.length > 0 ? (
-                    paginatedTrades.map((trade) => (
-                      <TableRow key={trade.id}>
-                        <TableCell>{trade.date}</TableCell>
-                        <TableCell className={trade.type === "LONG" ? "text-profit" : "text-loss"}>
-                          {trade.type}
-                        </TableCell>
-                        <TableCell>{trade.orderType}</TableCell>
-                        <TableCell>{trade.setup}</TableCell>
-                        <TableCell>{trade.broker}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(trade.margin)}</TableCell>
-                        <TableCell className="text-right">{trade.leverage}x</TableCell>
-                        <TableCell className="text-right">{formatCurrency(trade.entryPrice)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(trade.exitPrice)}</TableCell>
-                        <TableCell className="text-right">{formatPercentage(trade.stopPercentage)}</TableCell>
-                        <TableCell 
-                          className={`text-right ${trade.winPercentage >= 0 ? "text-profit" : "text-loss"}`}
-                        >
-                          {formatPercentage(trade.winPercentage)}
-                        </TableCell>
-                        <TableCell className="text-right">{formatCurrency(trade.totalCost)}</TableCell>
-                      </TableRow>
-                    ))
+                    paginatedTrades.map((trade) => {
+                      const isEditingRow = isEditing === trade.id;
+                      const target1Price = calculateTarget1(trade);
+                      const positionValue = calculatePositionValue(trade);
+                      const target1Value = calculateTarget1Value(trade);
+
+                      return (
+                        <TableRow key={trade.id}>
+                          <TableCell className="w-[120px]">
+                            {isEditingRow ? (
+                              <div className="flex space-x-1">
+                                <Button variant="ghost" size="icon" onClick={handleSaveEdit}>
+                                  <Check className="h-4 w-4 text-green-500" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={handleCancelEdit}>
+                                  <X className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex space-x-1">
+                                <Button variant="ghost" size="icon" onClick={() => handleEdit(trade.id)}>
+                                  <Pencil className="h-4 w-4 text-blue-500" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleDelete(trade.id)}>
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {isEditingRow ? (
+                              <Input 
+                                type="date"
+                                value={editedValues.date || trade.date}
+                                onChange={(e) => setEditedValues({...editedValues, date: e.target.value})}
+                                className="w-32"
+                              />
+                            ) : trade.date}
+                          </TableCell>
+                          <TableCell className={trade.type === "LONG" ? "text-profit" : "text-loss"}>
+                            {isEditingRow ? (
+                              <select 
+                                value={editedValues.type || trade.type}
+                                onChange={(e) => setEditedValues({...editedValues, type: e.target.value as "LONG" | "SHORT"})}
+                                className="w-24"
+                              >
+                                <option value="LONG">LONG</option>
+                                <option value="SHORT">SHORT</option>
+                              </select>
+                            ) : trade.type}
+                          </TableCell>
+                          <TableCell>
+                            {isEditingRow ? (
+                              <select 
+                                value={editedValues.orderType || trade.orderType}
+                                onChange={(e) => setEditedValues({...editedValues, orderType: e.target.value as "MAKER" | "TAKER"})}
+                                className="w-24"
+                              >
+                                <option value="MAKER">MAKER</option>
+                                <option value="TAKER">TAKER</option>
+                              </select>
+                            ) : trade.orderType}
+                          </TableCell>
+                          <TableCell>
+                            {isEditingRow ? (
+                              <Input 
+                                type="text"
+                                value={editedValues.setup || trade.setup || ""}
+                                onChange={(e) => setEditedValues({...editedValues, setup: e.target.value})}
+                                className="w-32"
+                              />
+                            ) : trade.setup}
+                          </TableCell>
+                          <TableCell>
+                            {isEditingRow ? (
+                              <Input 
+                                type="text"
+                                value={editedValues.broker || trade.broker || ""}
+                                onChange={(e) => setEditedValues({...editedValues, broker: e.target.value})}
+                                className="w-32"
+                              />
+                            ) : trade.broker}
+                          </TableCell>
+                          <TableCell>
+                            {isEditingRow ? (
+                              <Input 
+                                type="number"
+                                value={editedValues.entryPrice || trade.entryPrice}
+                                onChange={(e) => setEditedValues({...editedValues, entryPrice: parseFloat(e.target.value)})}
+                                className="w-24"
+                              />
+                            ) : formatCurrency(trade.entryPrice)}
+                          </TableCell>
+                          <TableCell>
+                            {isEditingRow ? (
+                              <Input 
+                                type="number"
+                                value={editedValues.exitPrice || trade.exitPrice}
+                                onChange={(e) => setEditedValues({...editedValues, exitPrice: parseFloat(e.target.value)})}
+                                className="w-24"
+                              />
+                            ) : formatCurrency(trade.exitPrice)}
+                          </TableCell>
+                          <TableCell>
+                            {isEditingRow ? (
+                              <Input 
+                                type="number"
+                                value={editedValues.stopPercentage || trade.stopPercentage}
+                                onChange={(e) => setEditedValues({...editedValues, stopPercentage: parseFloat(e.target.value)})}
+                                className="w-20"
+                              />
+                            ) : formatPercentage(trade.stopPercentage)}
+                          </TableCell>
+                          <TableCell 
+                            className={`${trade.winPercentage >= 0 ? "text-profit" : "text-loss"}`}
+                          >
+                            {formatPercentage(trade.winPercentage)}
+                          </TableCell>
+                          <TableCell>
+                            {formatCurrency(target1Price)}
+                          </TableCell>
+                          <TableCell>
+                            {formatCurrency(positionValue)}
+                          </TableCell>
+                          <TableCell>
+                            {formatCurrency(target1Value)}
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              placeholder="Target 2 price"
+                              defaultValue={trade.target2Price}
+                              className="w-28"
+                              disabled={!isEditingRow}
+                              onChange={(e) => isEditingRow && setEditedValues({
+                                ...editedValues, 
+                                target2Price: parseFloat(e.target.value)
+                              })}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              placeholder="Target 3 price"
+                              defaultValue={trade.target3Price}
+                              className="w-28"
+                              disabled={!isEditingRow}
+                              onChange={(e) => isEditingRow && setEditedValues({
+                                ...editedValues, 
+                                target3Price: parseFloat(e.target.value)
+                              })}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={12} className="text-center py-4">
+                      <TableCell colSpan={15} className="text-center py-4">
                         No trades found matching current filters
                       </TableCell>
                     </TableRow>
@@ -107,23 +497,25 @@ const TradeTable = () => {
             
             {totalPages > 1 && (
               <div className="flex items-center justify-between mt-4">
-                <button
+                <Button
                   onClick={() => setPage(prev => Math.max(prev - 1, 1))}
                   disabled={page === 1}
-                  className="px-2 py-1 border rounded text-sm disabled:opacity-50"
+                  variant="outline"
+                  size="sm"
                 >
                   Previous
-                </button>
+                </Button>
                 <span>
                   Page {page} of {totalPages}
                 </span>
-                <button
+                <Button
                   onClick={() => setPage(prev => Math.min(prev + 1, totalPages))}
                   disabled={page === totalPages}
-                  className="px-2 py-1 border rounded text-sm disabled:opacity-50"
+                  variant="outline"
+                  size="sm"
                 >
                   Next
-                </button>
+                </Button>
               </div>
             )}
           </TabsContent>
@@ -212,65 +604,70 @@ const TradeTable = () => {
             </div>
           </TabsContent>
           
-          <TabsContent value="targets">
+          <TabsContent value="risk-reward">
             <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
                     <TableHead>Type</TableHead>
-                    <TableHead>Position Value</TableHead>
-                    <TableHead>Entry Price</TableHead>
-                    <TableHead>Stop %</TableHead>
-                    <TableHead>Target 1 (1:1)</TableHead>
-                    <TableHead>Value (50%)</TableHead>
-                    <TableHead>Target 2</TableHead>
-                    <TableHead>Target 3</TableHead>
+                    <TableHead>Setup</TableHead>
+                    <TableHead className="text-right">Stop %</TableHead>
+                    <TableHead className="text-right">Result %</TableHead>
+                    <TableHead className="text-right">Risk/Reward</TableHead>
+                    <TableHead>Result</TableHead>
+                    <TableHead>Quality</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedTrades.length > 0 ? (
                     paginatedTrades.map((trade) => {
-                      const positionValue = trade.margin * trade.leverage;
-                      const target1Value = positionValue * 0.5; // 50% of position
+                      const riskReward = Math.abs(trade.winPercentage / trade.stopPercentage).toFixed(2);
+                      let quality = "Poor";
+                      
+                      if (trade.winPercentage >= 0) {
+                        if (parseFloat(riskReward) >= 3) quality = "Excellent";
+                        else if (parseFloat(riskReward) >= 2) quality = "Good";
+                        else if (parseFloat(riskReward) >= 1) quality = "Fair";
+                      }
                       
                       return (
-                        <TableRow key={`target-${trade.id}`}>
+                        <TableRow key={`risk-${trade.id}`}>
                           <TableCell>{trade.date}</TableCell>
                           <TableCell className={trade.type === "LONG" ? "text-profit" : "text-loss"}>
                             {trade.type}
                           </TableCell>
-                          <TableCell>{formatCurrency(positionValue)}</TableCell>
-                          <TableCell>{formatCurrency(trade.entryPrice)}</TableCell>
-                          <TableCell>{formatPercentage(trade.stopPercentage)}</TableCell>
-                          <TableCell>
-                            {trade.target1Price 
-                              ? formatCurrency(trade.target1Price) 
-                              : "N/A"}
+                          <TableCell>{trade.setup}</TableCell>
+                          <TableCell className="text-right">{formatPercentage(trade.stopPercentage)}</TableCell>
+                          <TableCell 
+                            className={`text-right ${trade.winPercentage >= 0 ? "text-profit" : "text-loss"}`}
+                          >
+                            {formatPercentage(trade.winPercentage)}
                           </TableCell>
-                          <TableCell>{formatCurrency(target1Value)}</TableCell>
+                          <TableCell className="text-right">{riskReward}</TableCell>
                           <TableCell>
-                            <Input
-                              type="number"
-                              placeholder="Target 2 price"
-                              defaultValue={trade.target2Price}
-                              className="w-32"
-                            />
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              trade.winPercentage >= 0 ? "bg-green-500/20 text-green-500" : "bg-red-500/20 text-red-500"
+                            }`}>
+                              {trade.winPercentage >= 0 ? "WIN" : "LOSS"}
+                            </span>
                           </TableCell>
                           <TableCell>
-                            <Input
-                              type="number"
-                              placeholder="Target 3 price"
-                              defaultValue={trade.target3Price}
-                              className="w-32"
-                            />
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              quality === "Excellent" ? "bg-green-500/20 text-green-500" :
+                              quality === "Good" ? "bg-blue-500/20 text-blue-500" :
+                              quality === "Fair" ? "bg-yellow-500/20 text-yellow-500" :
+                              "bg-red-500/20 text-red-500"
+                            }`}>
+                              {quality}
+                            </span>
                           </TableCell>
                         </TableRow>
                       );
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-4">
+                      <TableCell colSpan={8} className="text-center py-4">
                         No trades found matching current filters
                       </TableCell>
                     </TableRow>
@@ -281,23 +678,25 @@ const TradeTable = () => {
             
             {totalPages > 1 && (
               <div className="flex items-center justify-between mt-4">
-                <button
+                <Button
                   onClick={() => setPage(prev => Math.max(prev - 1, 1))}
                   disabled={page === 1}
-                  className="px-2 py-1 border rounded text-sm disabled:opacity-50"
+                  variant="outline"
+                  size="sm"
                 >
                   Previous
-                </button>
+                </Button>
                 <span>
                   Page {page} of {totalPages}
                 </span>
-                <button
+                <Button
                   onClick={() => setPage(prev => Math.min(prev + 1, totalPages))}
                   disabled={page === totalPages}
-                  className="px-2 py-1 border rounded text-sm disabled:opacity-50"
+                  variant="outline"
+                  size="sm"
                 >
                   Next
-                </button>
+                </Button>
               </div>
             )}
           </TabsContent>
