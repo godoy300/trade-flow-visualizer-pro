@@ -155,6 +155,7 @@ const TradeTable = () => {
     });
   };
 
+  // Calculate Target 1 price based on stop percentage (1:1 risk/reward)
   const calculateTarget1Price = (trade: Partial<Trade>) => {
     if (!trade.entryPrice || !trade.stopPercentage) return undefined;
 
@@ -167,20 +168,9 @@ const TradeTable = () => {
     }
   };
 
-  const calculateTarget1 = (trade: Trade) => {
-    if (trade.type === "LONG") {
-      return trade.entryPrice + (trade.entryPrice * trade.stopPercentage);
-    } else {
-      return trade.entryPrice - (trade.entryPrice * trade.stopPercentage);
-    }
-  };
-
+  // Calculate position value (margin * leverage)
   const calculatePositionValue = (trade: Trade) => {
     return trade.margin * trade.leverage;
-  };
-
-  const calculateTarget1Value = (trade: Trade) => {
-    return calculatePositionValue(trade) * 0.5; // 50% of position value
   };
 
   return (
@@ -319,20 +309,18 @@ const TradeTable = () => {
                     <TableHead>Exit</TableHead>
                     <TableHead>Stop %</TableHead>
                     <TableHead>Result %</TableHead>
-                    <TableHead>Target 1 (1:1)</TableHead>
-                    <TableHead>Position Value</TableHead>
-                    <TableHead>T1 Value (50%)</TableHead>
-                    <TableHead>T2</TableHead>
-                    <TableHead>T3</TableHead>
+                    <TableHead>Position</TableHead>
+                    <TableHead>TP1 (1:1)</TableHead>
+                    <TableHead>TP2</TableHead>
+                    <TableHead>TP3</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedTrades.length > 0 ? (
                     paginatedTrades.map((trade) => {
                       const isEditingRow = isEditing === trade.id;
-                      const target1Price = calculateTarget1(trade);
                       const positionValue = calculatePositionValue(trade);
-                      const target1Value = calculateTarget1Value(trade);
+                      const target1Price = calculateTarget1Price(trade);
 
                       return (
                         <TableRow key={trade.id}>
@@ -447,18 +435,15 @@ const TradeTable = () => {
                             {formatPercentage(trade.winPercentage)}
                           </TableCell>
                           <TableCell>
-                            {formatCurrency(target1Price)}
-                          </TableCell>
-                          <TableCell>
                             {formatCurrency(positionValue)}
                           </TableCell>
                           <TableCell>
-                            {formatCurrency(target1Value)}
+                            {formatCurrency(target1Price || 0)}
                           </TableCell>
                           <TableCell>
                             <Input
                               type="number"
-                              placeholder="Target 2 price"
+                              placeholder="TP2 price"
                               defaultValue={trade.target2Price}
                               className="w-28"
                               disabled={!isEditingRow}
@@ -471,7 +456,7 @@ const TradeTable = () => {
                           <TableCell>
                             <Input
                               type="number"
-                              placeholder="Target 3 price"
+                              placeholder="TP3 price"
                               defaultValue={trade.target3Price}
                               className="w-28"
                               disabled={!isEditingRow}
@@ -486,7 +471,7 @@ const TradeTable = () => {
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={15} className="text-center py-4">
+                      <TableCell colSpan={14} className="text-center py-4">
                         No trades found matching current filters
                       </TableCell>
                     </TableRow>
