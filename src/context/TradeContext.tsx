@@ -27,6 +27,8 @@ interface TradeContextProps {
   setFilters: (filters: Partial<FilterState>) => void;
   updateGoal: (goalId: number, updates: Partial<Goal>) => void;
   addTrade: (trade: Omit<Trade, 'id'>) => void;
+  updateTrade: (tradeId: number, updates: Partial<Trade>) => void;
+  deleteTrade: (tradeId: number) => void;
   resetFilters: () => void;
 }
 
@@ -108,6 +110,16 @@ export const TradeProvider = ({ children }: { children: ReactNode }) => {
     setTrades(prev => [...prev, newTrade]);
   };
 
+  const updateTrade = (tradeId: number, updates: Partial<Trade>) => {
+    setTrades(prev => prev.map(trade => 
+      trade.id === tradeId ? { ...trade, ...updates } : trade
+    ));
+  };
+
+  const deleteTrade = (tradeId: number) => {
+    setTrades(prev => prev.filter(trade => trade.id !== tradeId));
+  };
+
   return (
     <TradeContext.Provider value={{
       trades,
@@ -120,6 +132,8 @@ export const TradeProvider = ({ children }: { children: ReactNode }) => {
       setFilters,
       updateGoal,
       addTrade,
+      updateTrade,
+      deleteTrade,
       resetFilters
     }}>
       {children}

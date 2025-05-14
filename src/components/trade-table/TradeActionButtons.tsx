@@ -21,10 +21,20 @@ const TradeActionButtons = ({
   if (isEditing) {
     return (
       <div className="flex space-x-1">
-        <Button variant="ghost" size="icon" onClick={onSave}>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={onSave}
+          title="Save changes"
+        >
           <Check className="h-4 w-4 text-green-500" />
         </Button>
-        <Button variant="ghost" size="icon" onClick={onCancel}>
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={onCancel}
+          title="Cancel editing"
+        >
           <X className="h-4 w-4 text-red-500" />
         </Button>
       </div>
@@ -33,10 +43,20 @@ const TradeActionButtons = ({
 
   return (
     <div className="flex space-x-1">
-      <Button variant="ghost" size="icon" onClick={onEdit}>
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        onClick={onEdit}
+        title="Edit trade"
+      >
         <Pencil className="h-4 w-4 text-blue-500" />
       </Button>
-      <Button variant="ghost" size="icon" onClick={onDelete}>
+      <Button 
+        variant="ghost" 
+        size="icon" 
+        onClick={onDelete}
+        title="Delete trade"
+      >
         <Trash2 className="h-4 w-4 text-red-500" />
       </Button>
     </div>

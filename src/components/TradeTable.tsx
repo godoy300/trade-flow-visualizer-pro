@@ -17,7 +17,7 @@ import BrokerAnalysisTab from "./trade-table/BrokerAnalysisTab";
 import RiskRewardTab from "./trade-table/RiskRewardTab";
 
 const TradeTable = () => {
-  const { filteredTrades, setupAnalysis, brokerAnalysis, addTrade } = useTrade();
+  const { filteredTrades, setupAnalysis, brokerAnalysis, addTrade, updateTrade, deleteTrade } = useTrade();
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
   const [isEditing, setIsEditing] = useState<number | null>(null);
@@ -73,14 +73,42 @@ const TradeTable = () => {
   };
 
   const handleSaveEdit = () => {
-    // In a real app, this would save to the backend
-    // For now, just show a toast and reset editing state
-    toast({
-      title: "Trade updated",
-      description: `Trade #${isEditing} has been updated successfully.`,
-    });
-    setIsEditing(null);
-    setEditedValues({});
+    if (isEditing) {
+      // Calculate winPercentage based on trade type and prices
+      let winPercentage: number;
+      if (editedValues.type === "LONG") {
+        winPercentage = ((editedValues.exitPrice || 0) - (editedValues.entryPrice || 0)) / (editedValues.entryPrice || 1);
+      } else {
+        winPercentage = ((editedValues.entryPrice || 0) - (editedValues.exitPrice || 0)) / (editedValues.entryPrice || 1);
+      }
+      
+      // Determine if the trade is a win or loss
+      const resultType = winPercentage >= 0 ? "WIN" : "LOSS";
+      
+      // Calculate target prices
+      const target1Price = calculateTarget1Price(editedValues);
+      
+      // Update the trade with calculated values
+      const updatedValues = {
+        ...editedValues,
+        winPercentage,
+        resultType,
+        target1Price,
+      };
+      
+      // Update the trade in the context
+      updateTrade(isEditing, updatedValues);
+      
+      // Show success toast
+      toast({
+        title: "Trade updated",
+        description: `Trade #${isEditing} has been updated successfully.`,
+      });
+      
+      // Reset editing state
+      setIsEditing(null);
+      setEditedValues({});
+    }
   };
 
   const handleCancelEdit = () => {
@@ -89,8 +117,10 @@ const TradeTable = () => {
   };
 
   const handleDelete = (tradeId: number) => {
-    // In a real app, this would delete from the backend
-    // For now, just show a toast
+    // Delete the trade from the context
+    deleteTrade(tradeId);
+    
+    // Show success toast
     toast({
       title: "Trade deleted",
       description: `Trade #${tradeId} has been removed.`,
@@ -100,15 +130,21 @@ const TradeTable = () => {
 
   const handleAddTrade = () => {
     // Calculate missing fields
+    let winPercentage: number;
+    if (newTrade.type === "LONG") {
+      winPercentage = ((newTrade.exitPrice || 0) - (newTrade.entryPrice || 0)) / (newTrade.entryPrice || 1);
+    } else {
+      winPercentage = ((newTrade.entryPrice || 0) - (newTrade.exitPrice || 0)) / (newTrade.entryPrice || 1);
+    }
+    
+    const resultType = winPercentage >= 0 ? "WIN" : "LOSS";
+    const target1Price = calculateTarget1Price(newTrade);
+    
     const calculatedTrade = {
       ...newTrade,
-      winPercentage: newTrade.type === "LONG" 
-        ? ((newTrade.exitPrice || 0) - (newTrade.entryPrice || 0)) / (newTrade.entryPrice || 1) 
-        : ((newTrade.entryPrice || 0) - (newTrade.exitPrice || 0)) / (newTrade.entryPrice || 1),
-      resultType: newTrade.type === "LONG" 
-        ? (newTrade.exitPrice || 0) > (newTrade.entryPrice || 0) ? "WIN" : "LOSS" 
-        : (newTrade.exitPrice || 0) < (newTrade.entryPrice || 0) ? "WIN" : "LOSS",
-      target1Price: calculateTarget1Price(newTrade),
+      winPercentage,
+      resultType,
+      target1Price,
     };
 
     // Add the trade

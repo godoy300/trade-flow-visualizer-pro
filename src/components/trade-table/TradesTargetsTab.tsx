@@ -42,11 +42,11 @@ const TradesTargetsTab = ({
 }: TradesTargetsTabProps) => {
   return (
     <>
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-x-auto">
         <Table>
-          <TableHeader>
+          <TableHeader className="bg-muted/50 sticky top-0">
             <TableRow>
-              <TableHead>Actions</TableHead>
+              <TableHead className="w-[100px]">Actions</TableHead>
               <TableHead>Date</TableHead>
               <TableHead>Type</TableHead>
               <TableHead>Order</TableHead>
@@ -69,7 +69,7 @@ const TradesTargetsTab = ({
                   key={trade.id}
                   trade={trade}
                   isEditing={isEditing === trade.id}
-                  editedValues={editedValues}
+                  editedValues={isEditing === trade.id ? editedValues : {}}
                   formatCurrency={formatCurrency}
                   formatPercentage={formatPercentage}
                   calculatePositionValue={calculatePositionValue}

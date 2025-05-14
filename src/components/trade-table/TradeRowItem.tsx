@@ -37,8 +37,16 @@ const TradeRowItem = ({
   const positionValue = calculatePositionValue(trade);
   const target1Price = calculateTarget1Price(trade);
 
+  // For editing values, use editedValues if available, otherwise fall back to trade values
+  const currentValues = isEditing ? editedValues : trade;
+  
+  // Function to update edited values
+  const handleInputChange = (field: keyof Trade, value: any) => {
+    onEditValueChange({...editedValues, [field]: value});
+  };
+
   return (
-    <TableRow>
+    <TableRow className={isEditing ? "bg-muted/20" : ""}>
       <TableCell className="w-[120px]">
         <TradeActionButtons
           isEditing={isEditing}
@@ -53,7 +61,7 @@ const TradeRowItem = ({
           <Input 
             type="date"
             value={editedValues.date || trade.date}
-            onChange={(e) => onEditValueChange({...editedValues, date: e.target.value})}
+            onChange={(e) => handleInputChange('date', e.target.value)}
             className="w-32"
           />
         ) : trade.date}
@@ -62,8 +70,8 @@ const TradeRowItem = ({
         {isEditing ? (
           <select 
             value={editedValues.type || trade.type}
-            onChange={(e) => onEditValueChange({...editedValues, type: e.target.value as "LONG" | "SHORT"})}
-            className="w-24"
+            onChange={(e) => handleInputChange('type', e.target.value as "LONG" | "SHORT")}
+            className="w-24 p-2 border rounded"
           >
             <option value="LONG">LONG</option>
             <option value="SHORT">SHORT</option>
@@ -74,8 +82,8 @@ const TradeRowItem = ({
         {isEditing ? (
           <select 
             value={editedValues.orderType || trade.orderType}
-            onChange={(e) => onEditValueChange({...editedValues, orderType: e.target.value as "MAKER" | "TAKER"})}
-            className="w-24"
+            onChange={(e) => handleInputChange('orderType', e.target.value as "MAKER" | "TAKER")}
+            className="w-24 p-2 border rounded"
           >
             <option value="MAKER">MAKER</option>
             <option value="TAKER">TAKER</option>
@@ -87,7 +95,7 @@ const TradeRowItem = ({
           <Input 
             type="text"
             value={editedValues.setup || trade.setup || ""}
-            onChange={(e) => onEditValueChange({...editedValues, setup: e.target.value})}
+            onChange={(e) => handleInputChange('setup', e.target.value)}
             className="w-32"
           />
         ) : trade.setup}
@@ -97,7 +105,7 @@ const TradeRowItem = ({
           <Input 
             type="text"
             value={editedValues.broker || trade.broker || ""}
-            onChange={(e) => onEditValueChange({...editedValues, broker: e.target.value})}
+            onChange={(e) => handleInputChange('broker', e.target.value)}
             className="w-32"
           />
         ) : trade.broker}
@@ -107,7 +115,7 @@ const TradeRowItem = ({
           <Input 
             type="number"
             value={editedValues.entryPrice || trade.entryPrice}
-            onChange={(e) => onEditValueChange({...editedValues, entryPrice: parseFloat(e.target.value)})}
+            onChange={(e) => handleInputChange('entryPrice', parseFloat(e.target.value))}
             className="w-24"
           />
         ) : formatCurrency(trade.entryPrice)}
@@ -117,7 +125,7 @@ const TradeRowItem = ({
           <Input 
             type="number"
             value={editedValues.exitPrice || trade.exitPrice}
-            onChange={(e) => onEditValueChange({...editedValues, exitPrice: parseFloat(e.target.value)})}
+            onChange={(e) => handleInputChange('exitPrice', parseFloat(e.target.value))}
             className="w-24"
           />
         ) : formatCurrency(trade.exitPrice)}
@@ -127,8 +135,9 @@ const TradeRowItem = ({
           <Input 
             type="number"
             value={editedValues.stopPercentage || trade.stopPercentage}
-            onChange={(e) => onEditValueChange({...editedValues, stopPercentage: parseFloat(e.target.value)})}
+            onChange={(e) => handleInputChange('stopPercentage', parseFloat(e.target.value))}
             className="w-20"
+            step="0.01"
           />
         ) : formatPercentage(trade.stopPercentage)}
       </TableCell>
@@ -138,7 +147,23 @@ const TradeRowItem = ({
         {formatPercentage(trade.winPercentage)}
       </TableCell>
       <TableCell>
-        {formatCurrency(positionValue)}
+        {isEditing ? (
+          <div className="flex items-center space-x-2">
+            <Input 
+              type="number"
+              value={editedValues.margin || trade.margin}
+              onChange={(e) => handleInputChange('margin', parseFloat(e.target.value))}
+              className="w-20"
+            />
+            <span>×</span>
+            <Input 
+              type="number"
+              value={editedValues.leverage || trade.leverage}
+              onChange={(e) => handleInputChange('leverage', parseFloat(e.target.value))}
+              className="w-16"
+            />
+          </div>
+        ) : formatCurrency(positionValue)}
       </TableCell>
       <TableCell>
         {formatCurrency(target1Price || 0)}
@@ -147,26 +172,20 @@ const TradeRowItem = ({
         <Input
           type="number"
           placeholder="TP2 price"
-          defaultValue={trade.target2Price}
+          value={isEditing ? editedValues.target2Price || trade.target2Price || '' : trade.target2Price || ''}
           className="w-28"
           disabled={!isEditing}
-          onChange={(e) => isEditing && onEditValueChange({
-            ...editedValues, 
-            target2Price: parseFloat(e.target.value)
-          })}
+          onChange={(e) => isEditing && handleInputChange('target2Price', e.target.value ? parseFloat(e.target.value) : undefined)}
         />
       </TableCell>
       <TableCell>
         <Input
           type="number"
           placeholder="TP3 price"
-          defaultValue={trade.target3Price}
+          value={isEditing ? editedValues.target3Price || trade.target3Price || '' : trade.target3Price || ''}
           className="w-28"
           disabled={!isEditing}
-          onChange={(e) => isEditing && onEditValueChange({
-            ...editedValues, 
-            target3Price: parseFloat(e.target.value)
-          })}
+          onChange={(e) => isEditing && handleInputChange('target3Price', e.target.value ? parseFloat(e.target.value) : undefined)}
         />
       </TableCell>
     </TableRow>
